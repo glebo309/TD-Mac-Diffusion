@@ -1,0 +1,24 @@
+.DS_Store
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.log
+models/
+artifacts/
+Backup/
+*.bkp*
+# Local working projects and old one-off development exports.
+/*.toe
+/*.tox
+/Launch Mac Diffusion.command
+/touchdesigner/*
+!/touchdesigner/README.md
+!/touchdesigner/bridge.py
+!/touchdesigner/controls.py
+!/touchdesigner/core_runtime.py
+!/touchdesigner/runtime.py
+!/touchdesigner/input_mask.py
+!/touchdesigner/component/
+!/touchdesigner/component.toc
+/backend/vendor/README.upstream.md

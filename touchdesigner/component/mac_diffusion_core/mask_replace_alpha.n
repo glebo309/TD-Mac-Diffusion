@@ -1,0 +1,10 @@
+TOP:reorder
+tile 910 -180 130 90
+flags =  parlanguage 0
+inputs
+{
+0 	mask_straight
+1 	input_image
+}
+color 0.67 0.67 0.67
+end

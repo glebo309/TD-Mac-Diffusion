@@ -1,0 +1,9 @@
+TOP:reorder
+tile 400 -180 130 90
+flags =  parlanguage 0
+inputs
+{
+0 	mixed
+}
+color 0.67 0.67 0.67
+end

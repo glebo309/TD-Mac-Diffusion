@@ -1,0 +1,14 @@
+?
+pages 1 Diffusion
+772804867 Running Generate 1 1 0 0 1 1 1 2 0 "" "" Diffusion 0
+772804868 Prompt Prompt 1 1 0 0 1 1 1 2 0 "an iridescent glass sculpture, liquid chrome, intricate flowing organic forms, cinematic studio lighting, vibrant cyan and orange" "" Diffusion 1
+772804866 Seed Seed 1 1 0 0 1 1 1 2 42 "" "" Diffusion 2
+772804865 Feedback Feedback 1 3 0 0 3 0.95 1 2 0.1 "" "" Diffusion 3
+772804865 Wetdry "Wet / Dry" 1 3 0 0 3 1 1 2 1 "" "" Diffusion 4
+772804879 Model Model 1 1 0 0 1 1 1 2 0 sdxs "" Diffusion 4097 3 sdxs "SDXS 0.9" dreamshaper "SDXS DreamShaper" dreamshaper-sketch "DreamShaper Shape" 5
+772935937 Shapestrength "Shape Influence" 1 3 0 0 3 1 1 2 0.8 "" "" Diffusion 6 "me.par.Model == 'dreamshaper-sketch'"
+772804867 Lockseed "Lock Seed" 1 1 0 0 1 1 1 2 0 "" "" Diffusion 7
+772804869 Newvariation "New Variation" 1 1 0 0 1 1 1 2 0 "" "" Diffusion 8
+772804867 Masktoinput "Mask to Input" 1 1 0 0 1 1 1 2 0 "" "" Diffusion 9
+772804879 Masksource "Mask Source" 1 1 0 0 1 1 1 2 0 brightness "" Diffusion 4097 2 alpha Alpha brightness Brightness 10
+?

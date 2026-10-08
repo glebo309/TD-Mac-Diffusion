@@ -1,0 +1,5 @@
+?
+outputalpha 0 input2
+outputalphachan 17 alpha "'alpha' if parent().par.Masksource == 'alpha' else 'luminance'"
+format 0 rgba32float
+?

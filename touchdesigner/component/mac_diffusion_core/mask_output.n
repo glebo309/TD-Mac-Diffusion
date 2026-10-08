@@ -1,0 +1,10 @@
+TOP:switch
+tile 1250 -180 130 90
+flags =  parlanguage 0
+inputs
+{
+0 	mixed
+1 	mask_premultiply
+}
+color 0.67 0.67 0.67
+end
