@@ -1,0 +1,4 @@
+?
+cross 17 0 1-float(parent().par.Smoothing)
+format 0 rgba16float
+?

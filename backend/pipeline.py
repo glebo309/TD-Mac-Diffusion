@@ -6,7 +6,7 @@ is ochyai's public webcam example, retained with provenance in vendor/.
 """
 import numpy as np
 
-from .model_specs import DEFAULT_MODEL_DIR, model_directory
+from .model_specs import DEFAULT_MODEL_DIR, RESOLUTIONS, model_directory
 
 def _release_memory():
     import gc
@@ -26,16 +26,22 @@ def _create_pipeline(**kwargs):
 
 class MacDiffusion:
     def __init__(self, prompt='colorful oil painting, expressive brushstrokes',
-                 model_dir=None, seed=42, feedback=0.3, model='sdxs', shape_strength=0.8):
+                 model_dir=None, seed=42, feedback=0.3, model='sdxs', shape_strength=0.8, resolution=512,
+                 subject_edges=False):
         default_dir = model_directory(model)
+        if resolution not in RESOLUTIONS:
+            raise ValueError(f'Resolution must be one of {RESOLUTIONS}')
+        # shortcut: sketch control and mask preprocessing are fixed at 512; convert per size to lift this.
+        if model == 'dreamshaper-sketch':
+            resolution = 512
         self.model = model
         self._validate(seed=seed, feedback=feedback, shape_strength=shape_strength)
         self._pipeline = _create_pipeline(
-            model_name=model, render_size=512, output_size=512,
+            model_name=model, render_size=resolution, output_size=512,
             prompt=str(prompt), latent_feedback=float(feedback),
             coreml_dir=str(model_dir or default_dir))
         self.seed = None
-        self.configure(seed=seed, shape_strength=shape_strength)
+        self.configure(seed=seed, shape_strength=shape_strength, subject_edges=subject_edges)
 
     @staticmethod
     def _validate(seed=None, feedback=None, shape_strength=None):
@@ -46,11 +52,13 @@ class MacDiffusion:
         if feedback is not None and not 0 <= float(feedback) <= 0.95:
             raise ValueError('Feedback must be between 0 and 0.95')
 
-    def configure(self, prompt=None, seed=None, feedback=None, shape_strength=None):
+    def configure(self, prompt=None, seed=None, feedback=None, shape_strength=None, subject_edges=None):
         self._validate(seed=seed, feedback=feedback, shape_strength=shape_strength)
         p = self._pipeline
         if shape_strength is not None:
             p.shape_strength = float(shape_strength)
+        if subject_edges is not None:
+            p.subject_edges = bool(subject_edges)
         if prompt is not None and str(prompt) != p._current_prompt:
             embeddings = p._encode_single(str(prompt))
             p._target_embeds = embeddings

@@ -7,6 +7,7 @@ from .sketch import prepare_control
 class SketchPipeline(Pipeline):
     def __init__(self,*args,**kwargs):
         self.shape_strength=.8
+        self.subject_edges=False
         super().__init__(*args,**kwargs)
 
     def _warmup(self,n=12):
@@ -15,7 +16,7 @@ class SketchPipeline(Pipeline):
         self._prev_denoised=None
 
     def process_frame(self,frame_bgr):
-        control=prepare_control(np.ascontiguousarray(frame_bgr[:,:,::-1]))
+        control=prepare_control(np.ascontiguousarray(frame_bgr[:,:,::-1]),self.subject_edges)
         # Euler t=999 input scaling and one-step x0 reconstruction. Starting
         # with fixed noise matches upstream text-to-image sketch conditioning.
         noisy=self._sqrt_1ma*self._fixed_noise

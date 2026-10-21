@@ -10,8 +10,15 @@ import urllib.request
 import urllib.error
 import numpy as np
 
+_current=None
+
 class Bridge:
     def __init__(self, url='http://127.0.0.1:8765'):
+        global _current
+        # A reloaded component never calls stop(); its bridge would keep sending stale controls.
+        # One bridge drives the shared worker, so the newest replaces the previous one.
+        if _current is not None:_current.close()
+        _current=self
         self.url=url
         self.project=pathlib.Path(__file__).resolve().parents[1]
         self.worker_process=None
@@ -64,10 +71,13 @@ class Bridge:
                 with self.lock:
                     frame=self.frame; self.frame=None
                     controls=dict(self.controls)
+                if self.closed:return
                 if controls and controls!=self.sent_controls:
                     with self._request('/control',json.dumps(controls).encode(),True) as response:
                         response.read()
                     self.sent_controls=controls
+                # close() cannot cancel a request in flight; never post after it.
+                if self.closed:return
                 if frame is not None and controls.get('running',False):
                     with self._request('/frame',frame) as response:response.read()
                 with self._request('/result') as response:

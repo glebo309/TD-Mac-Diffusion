@@ -8,7 +8,7 @@ def load_runtime():
 
 def component(running):
     c=Mock()
-    c.par=SimpleNamespace(Running=running,Prompt='glass sculpture',Seed=42,Feedback=.1,Wetdry=1,Model='sdxs',Shapestrength=.8,Lockseed=False)
+    c.par=SimpleNamespace(Running=running,Prompt='glass sculpture',Seed=42,Feedback=.1,Wetdry=1,Model='sdxs',Shapestrength=.8,Lockseed=False,Resolution='512',Subjectedges=False)
     c.inputs=[object()]
     return c
 
@@ -34,7 +34,7 @@ def test_enabling_component_creates_bridge_lazily(monkeypatch):
     monkeypatch.setattr(runtime.time,'monotonic',lambda:0)
     runtime.tick()
     bridge.assert_called_once()
-    instance.submit.assert_called_with(None,{'running':True,'prompt':'glass sculpture','seed':42,'feedback':.1,'model':'sdxs','shape_strength':.8})
+    instance.submit.assert_called_with(None,{'running':True,'prompt':'glass sculpture','seed':42,'feedback':.1,'model':'sdxs','shape_strength':.8,'resolution':512,'subject_edges':False})
 
 def test_disabling_sends_pause_without_reading_input(monkeypatch):
     runtime=load_runtime()
@@ -42,7 +42,7 @@ def test_disabling_sends_pause_without_reading_input(monkeypatch):
     runtime.client=Mock()
     monkeypatch.setattr(runtime,'parent',lambda:c,raising=False)
     runtime.tick()
-    runtime.client.submit.assert_called_once_with(None,{'running':False,'prompt':'glass sculpture','seed':42,'feedback':.1,'model':'sdxs','shape_strength':.8})
+    runtime.client.submit.assert_called_once_with(None,{'running':False,'prompt':'glass sculpture','seed':42,'feedback':.1,'model':'sdxs','shape_strength':.8,'resolution':512,'subject_edges':False})
     c.op.assert_not_called()
 
 def test_generated_frame_stays_in_module_memory_not_component_storage(monkeypatch):
@@ -96,3 +96,34 @@ def test_shape_model_and_strength_are_sent_by_both_runtimes(monkeypatch):
         sent=instance.submit.call_args.args[1]
         assert sent['model']=='dreamshaper-sketch'
         assert sent['shape_strength']==.65
+
+
+class MenuPar:
+    """TouchDesigner menu par: int() is the menu index, str() is the value."""
+    def __init__(self,names,value):self.names,self.value=names,value
+    def __int__(self):return self.names.index(self.value)
+    def __str__(self):return self.value
+
+
+def test_resolution_menu_sends_value_not_index(monkeypatch):
+    import numpy as np
+    runtime=load_runtime()
+    c=component(True)
+    c.par.Resolution=MenuPar(['512','384','256'],'384')
+    c.op.return_value.numpyArray.return_value=np.zeros((512,512,4),dtype=np.float32)
+    instance=Mock()
+    instance.snapshot.return_value=(None,-1,{'state':'ready'})
+    monkeypatch.setattr(runtime,'parent',lambda:c,raising=False)
+    monkeypatch.setattr(runtime,'Bridge',Mock(return_value=instance))
+    monkeypatch.setattr(runtime.time,'monotonic',lambda:1)
+    runtime.tick()
+    assert instance.submit.call_args.args[1]['resolution']==384
+
+
+def test_start_closes_bridge_left_by_reloaded_component():
+    runtime=load_runtime()
+    stale=Mock()
+    runtime.bridge._current=stale
+    runtime.start()
+    stale.close.assert_called_once()
+    runtime.bridge._current=None

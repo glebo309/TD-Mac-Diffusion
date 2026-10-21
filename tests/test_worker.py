@@ -158,6 +158,59 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(events[:3], [('load', 'sdxs'), ('close', 'sdxs'), ('load', 'dreamshaper')])
         self.assertEqual(engines[1].options['model'], 'dreamshaper')
 
+    def test_resolution_change_reloads_engine_at_new_size(self):
+        loads = []
+        def factory(**options):
+            loads.append(options['resolution'])
+            engine = FakeEngine(**options)
+            engine.release.set()
+            return engine
+        self.service.close()
+        self.service = DiffusionService(factory)
+        self.service.control({'running': True})
+        self.service.submit(bytes(FRAME_BYTES))
+        wait_for(lambda: self.service.status()['generated_count'] == 1)
+        self.service.control({'resolution': 384})
+        self.service.submit(bytes(FRAME_BYTES))
+        wait_for(lambda: self.service.status()['generated_count'] == 2)
+        self.assertEqual(loads, [512, 384])
+        for bad in (300, '384', 384.0):
+            with self.assertRaises(ValueError):
+                self.service.control({'resolution': bad})
+        self.assertEqual(self.service.status()['resolution'], 384)
+
+    def test_shape_stays_512_and_switching_back_loads_menu_size_once(self):
+        loads = []
+        def factory(**options):
+            loads.append((options['model'], options['resolution']))
+            engine = FakeEngine(**options)
+            engine.release.set()
+            return engine
+        self.service.close()
+        self.service = DiffusionService(factory)
+        def render(controls, count):
+            self.service.control(controls)
+            self.service.submit(bytes(FRAME_BYTES))
+            wait_for(lambda: self.service.status()['generated_count'] == count)
+        render({'running': True, 'model': 'dreamshaper-sketch', 'resolution': 256}, 1)
+        for _tick in range(3):
+            self.assertEqual(self.service.control({'model': 'dreamshaper-sketch', 'resolution': 256})['resolution'], 512)
+        render({'model': 'dreamshaper-sketch', 'resolution': 256}, 2)
+        self.assertEqual(self.service.status()['resolution'], 512)
+        render({'model': 'sdxs', 'resolution': 256}, 3)
+        render({'model': 'sdxs', 'resolution': 256}, 4)
+        self.assertEqual(loads, [('dreamshaper-sketch', 512), ('sdxs', 256)])
+
+    def test_subject_edges_defaults_off_and_reaches_engine(self):
+        self.engine.release.set()
+        self.assertFalse(self.service.status()['subject_edges'])
+        with self.assertRaises(ValueError):
+            self.service.control({'subject_edges': 1})
+        self.service.control({'running': True, 'subject_edges': True})
+        self.service.submit(bytes(FRAME_BYTES))
+        wait_for(lambda: self.service.status()['generated_count'] == 1)
+        self.assertTrue(self.engine.options['subject_edges'])
+
     def test_model_switch_during_loading_never_processes_obsolete_model(self):
         loading = threading.Event()
         release = threading.Event()

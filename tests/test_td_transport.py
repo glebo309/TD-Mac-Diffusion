@@ -59,3 +59,24 @@ def test_explicit_variation_never_repeats_current_seed():
     from touchdesigner.controls import fresh_seed
     assert fresh_seed(42,Mock(return_value=42))==43
     assert fresh_seed(42,Mock(return_value=25))==25
+
+def test_new_bridge_closes_previous_one(monkeypatch):
+    monkeypatch.setattr(Bridge,'_run',lambda self:None)
+    first=Bridge()
+    second=Bridge()
+    assert first.closed and not second.closed
+
+def test_closed_bridge_does_not_post_after_in_flight_request():
+    import threading
+    from unittest.mock import MagicMock
+    bridge=Bridge.__new__(Bridge)
+    bridge.lock=threading.Lock();bridge.closed=False;bridge.sent_controls=None
+    bridge.frame=b'frame';bridge.controls={'running':True}
+    paths=[]
+    def request(path,data=None,json_data=False):
+        paths.append(path)
+        bridge.closed=True  # a reload closes this bridge while /control is in flight
+        return MagicMock()
+    bridge._request=request
+    bridge._run()
+    assert paths==['/control']

@@ -38,3 +38,7 @@ mac_diffusion_core/mask_replace_alpha.parm
 mac_diffusion_core/generated_callbacks.n
 mac_diffusion_core/generated_callbacks.parm
 mac_diffusion_core/generated_callbacks.text
+mac_diffusion_core/smooth_feedback.n
+mac_diffusion_core/smooth_feedback.parm
+mac_diffusion_core/smooth.n
+mac_diffusion_core/smooth.parm

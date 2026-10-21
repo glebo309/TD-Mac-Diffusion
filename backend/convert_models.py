@@ -21,12 +21,12 @@ import torch
 import coremltools as ct
 
 try:
-    from .model_specs import MODEL_CONFIGS, model_directory
+    from .model_specs import MODEL_CONFIGS, RESOLUTIONS, model_directory, unet_package
 except ImportError:
-    from model_specs import MODEL_CONFIGS, model_directory
+    from model_specs import MODEL_CONFIGS, RESOLUTIONS, model_directory, unet_package
 
 
-def convert_unet(model_id, hidden_size, save_path):
+def convert_unet(model_id, hidden_size, save_path, size=512):
     """Convert UNet to CoreML."""
     from diffusers import StableDiffusionPipeline
 
@@ -55,7 +55,7 @@ def convert_unet(model_id, hidden_size, save_path):
 
     wrapper = UNetWrapper(unet).eval()
 
-    sample = torch.randn(1, 4, 64, 64)
+    sample = torch.randn(1, 4, size // 8, size // 8)
     timestep = torch.tensor([999.0])
     hidden_states = torch.randn(1, 77, hidden_size)
 
@@ -182,6 +182,8 @@ def main():
                         help="Output directory for CoreML models")
     parser.add_argument("--model", default="sdxs", choices=[key for key in MODEL_CONFIGS if key != "dreamshaper-sketch"],
                         help="Model to convert (default: sdxs)")
+    parser.add_argument("--size", type=int, default=512, choices=RESOLUTIONS,
+                        help="Internal render size; smaller is faster (default: 512)")
     args = parser.parse_args()
 
     output_dir = str(args.output_dir or model_directory(args.model))
@@ -195,20 +197,21 @@ def main():
 
     # Step 1: UNet
     print(f"\n[1/3] Converting UNet ({cfg['model_id']})...")
-    unet_path = os.path.join(output_dir, f"{cfg['unet_prefix']}.mlpackage")
-    pipe = convert_unet(cfg["model_id"], cfg["hidden_size"], unet_path)
+    unet_path = os.path.join(output_dir, unet_package(cfg['unet_prefix'], args.size))
+    pipe = convert_unet(cfg["model_id"], cfg["hidden_size"], unet_path, args.size)
 
     vae_kwargs = {"model_id": cfg.get("vae_model_id", "madebyollin/taesd"), "subfolder": cfg.get("vae_subfolder")}
 
     # Step 2: VAE Encoder
-    print(f"\n[2/3] Converting TinyVAE Encoder (512x512)...")
-    enc_path = os.path.join(output_dir, "taesd_encoder_512.mlpackage")
-    convert_vae_encoder(enc_path, size=512, **vae_kwargs)
+    print(f"\n[2/3] Converting TinyVAE Encoder ({args.size}x{args.size})...")
+    enc_path = os.path.join(output_dir, f"taesd_encoder_{args.size}.mlpackage")
+    convert_vae_encoder(enc_path, size=args.size, **vae_kwargs)
 
     # Step 3: VAE Decoder
-    print(f"\n[3/3] Converting TinyVAE Decoder (512x512)...")
-    dec_path = os.path.join(output_dir, "taesd_decoder.mlpackage")
-    convert_vae_decoder(dec_path, size=512, **vae_kwargs)
+    print(f"\n[3/3] Converting TinyVAE Decoder ({args.size}x{args.size})...")
+    # Same names the runtime looks up (Pipeline.__init__).
+    dec_path = os.path.join(output_dir, "taesd_decoder.mlpackage" if args.size == 512 else f"taesd_decoder_{args.size}.mlpackage")
+    convert_vae_decoder(dec_path, size=args.size, **vae_kwargs)
 
     print("\n" + "=" * 60)
     print("ALL CONVERSIONS COMPLETE!")
