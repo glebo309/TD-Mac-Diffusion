@@ -69,7 +69,8 @@ def test_new_bridge_closes_previous_one(monkeypatch):
 
 def test_smoothing_feedback_reads_the_blended_image():
     root=pathlib.Path(__file__).resolve().parents[1]/'touchdesigner/component/mac_diffusion_core'
-    assert '0 \tsmooth\n' in (root/'smooth_feedback.n').read_text()
+    # The feedback input is only the reset image; wiring smooth into it makes a cook loop.
+    assert '0 \tgenerated\n' in (root/'smooth_feedback.n').read_text()
     assert 'top 0 smooth' in (root/'smooth_feedback.parm').read_text()
 
 def test_closed_bridge_does_not_post_after_in_flight_request():
