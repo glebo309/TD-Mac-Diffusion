@@ -87,3 +87,24 @@ def test_closed_bridge_does_not_post_after_in_flight_request():
     bridge._request=request
     bridge._run()
     assert paths==['/control']
+
+def test_worker_older_than_source_is_stopped_once(monkeypatch,tmp_path):
+    bridge=Bridge.__new__(Bridge)
+    bridge.project=tmp_path;bridge.checked_pid=None
+    source=tmp_path/'worker/service.py';source.parent.mkdir();source.touch()
+    edited=source.stat().st_mtime
+    kill=Mock();monkeypatch.setattr('touchdesigner.bridge.os.kill',kill)
+    ps=Mock(return_value=Mock(stdout='/x/.venv/bin/python -m worker.server'))
+    monkeypatch.setattr('touchdesigner.bridge.subprocess.run',ps)
+    bridge._stop_if_stale({'pid':11,'started':edited+5})
+    kill.assert_not_called()
+    bridge._stop_if_stale({'pid':12,'started':edited-5})
+    kill.assert_called_once()
+    assert kill.call_args.args[0]==12
+    bridge._stop_if_stale({'pid':12,'started':edited-5})
+    assert kill.call_count==1
+    ps.return_value=Mock(stdout='/usr/bin/some-other-app')
+    bridge._stop_if_stale({'pid':13,'started':edited-5})
+    assert kill.call_count==1
+    bridge._stop_if_stale({'started':edited-5})  # pre-pid worker: nothing to signal
+    assert kill.call_count==1

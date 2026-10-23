@@ -3,6 +3,7 @@ import json
 import errno
 import os
 import pathlib
+import signal
 import subprocess
 import threading
 import time
@@ -23,6 +24,7 @@ class Bridge:
         self.project=pathlib.Path(__file__).resolve().parents[1]
         self.worker_process=None
         self.last_launch=0
+        self.checked_pid=None
         self.lock=threading.Lock()
         self.frame=None
         self.result=None
@@ -65,6 +67,17 @@ class Bridge:
         with (self.project/'worker.log').open('ab') as log:
             self.worker_process=subprocess.Popen([str(python),'-m','worker.server'],cwd=str(self.project),stdout=log,stderr=subprocess.STDOUT,env=env,start_new_session=True)
 
+    def _stop_if_stale(self,status):
+        # A worker outlives code edits; one started before them rejects new controls forever.
+        pid=status.get('pid')
+        if pid is None or pid==self.checked_pid:return
+        self.checked_pid=pid
+        sources=[*(self.project/'worker').glob('*.py'),*(self.project/'backend').glob('*.py')]
+        if not sources or max(p.stat().st_mtime for p in sources)<=status.get('started',0):return
+        command=subprocess.run(['ps','-p',str(pid),'-o','command='],capture_output=True,text=True).stdout
+        if 'worker.server' not in command:return  # never signal a process that is not our worker
+        os.kill(pid,signal.SIGTERM)  # the refused connection that follows relaunches current code
+
     def _run(self):
         while not self.closed:
             try:
@@ -90,9 +103,15 @@ class Bridge:
                 with self._request('/status') as response:
                     status=json.loads(response.read())
                 with self.lock:self.status=status
+                self._stop_if_stale(status)
                 time.sleep(.012)
             except Exception as exc:
                 self.sent_controls=None
+                if isinstance(exc,urllib.error.HTTPError) and exc.code==400:
+                    try:
+                        with self._request('/status') as response:self._stop_if_stale(json.loads(response.read()))
+                    except Exception:
+                        pass
                 self._maybe_launch_worker(exc)
                 with self.lock:self.status={'state':'Worker unavailable','error':str(exc),'fps':0,'latency_ms':0}
                 time.sleep(.5)

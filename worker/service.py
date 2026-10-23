@@ -1,5 +1,6 @@
 """Single-owner inference loop with bounded, latest-frame transport."""
 import gc
+import os
 import threading
 import time
 
@@ -23,7 +24,7 @@ class DiffusionService:
         self._reset = 0
         self._status = dict(running=False, state='paused', model='sdxs', prompt=DEFAULT_PROMPT,
                             seed=42, feedback=0.1, shape_strength=0.8, subject_edges=False, resolution=512, fps=0.0, latency_ms=0.0,
-                            generated_count=0, error='')
+                            generated_count=0, error='', pid=os.getpid(), started=time.time())
         self._thread = threading.Thread(target=self._run, daemon=True, name='diffusion')
         self._thread.start()
 
