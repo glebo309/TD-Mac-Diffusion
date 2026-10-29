@@ -11,6 +11,7 @@ _source = pathlib.Path(__file__).resolve().parents[1] if '__file__' in globals()
 _source = _source if _source and (_source / 'touchdesigner/bridge.py').is_file() else None
 PROJECT = pathlib.Path(os.environ.get('MAC_DIFFUSION_HOME') or _registered or _source or pathlib.Path.home() / 'Projects/TD-Mac-Diffusion').expanduser()
 if str(PROJECT/'touchdesigner') not in sys.path:sys.path.insert(0,str(PROJECT/'touchdesigner'))
+import bridge
 from bridge import Bridge
 from controls import prompt_seed,fresh_seed
 last_prompt=None
@@ -25,6 +26,8 @@ def start():
     # Loading a disabled component must not contact the shared worker.
     global client,last_capture,last_result_id,last_controls
     if client:client.close()
+    # A reload empties `client`, but the previous component's bridge is still running.
+    if bridge._current is not None:bridge._current.close()
     client=None
     last_capture=0
     last_result_id=-1
@@ -49,16 +52,19 @@ def tick():
     try:
         c=parent()
         update_prompt_seed(c)
+        # int() of a menu par is its index; str() gives the value ('384').
         controls={'running':bool(c.par.Running),'prompt':str(c.par.Prompt),
-                  'seed':int(c.par.Seed),'feedback':float(c.par.Feedback),'model':str(c.par.Model),'shape_strength':float(c.par.Shapestrength)}
+                  'seed':int(c.par.Seed),'feedback':float(c.par.Feedback),'model':str(c.par.Model),'shape_strength':float(c.par.Shapestrength),'resolution':int(str(c.par.Resolution)),
+                  'subject_edges':bool(c.par.Subjectedges)}
         if not controls['running']:
             if client is not None:client.submit(None,controls)
             c.store('worker_status',{'state':'bypassed'})
             return
-        if client is None:client=Bridge()
+        if client is None or client.closed:client=Bridge()
         frame=None
         now=time.monotonic()
-        if now-last_capture>=1/20:
+        # Every second tick at 60 FPS (~30 Hz, ~3.5 ms readback each); 1/30 would jitter onto every third tick.
+        if now-last_capture>=1/40:
             data=c.op('input_image').numpyArray(delayed=True)
             if data is not None:
                 frame=np.ascontiguousarray(np.clip(data[::-1,:,:3]*255,0,255).astype(np.uint8)).tobytes()

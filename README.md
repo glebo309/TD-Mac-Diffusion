@@ -65,6 +65,8 @@ Select **DreamShaper Shape** and adjust **Shape Influence**. Feed it clear silho
 
 Enable **Mask to Input** when you want the generated output restricted to your source shape. Select **Brightness** for a white shape on black, or **Alpha** for a shape on transparency. Masking happens after generation. It crops the output to your shape; it is not semantic segmentation or diffusion inpainting.
 
+Enable **Subject Edges** (DreamShaper Shape only) to guide generation from the main subject's outline instead of every edge in the frame. It uses macOS Vision subject detection and falls back to full-frame edges when no subject is found. It changes only the guidance; the output image is not masked.
+
 ## Parameters
 
 | Parameter | Purpose |
@@ -80,10 +82,15 @@ Enable **Mask to Input** when you want the generated output restricted to your s
 | Wet / Dry | Mix source and generated output |
 | Mask to Input | Restrict output to the input mask |
 | Mask Source | Use source alpha or brightness |
+| Subject Edges | DreamShaper Shape only: take guide edges from the detected subject instead of the whole frame; off by default |
+| Smoothing | Blend each new result into the previous output so playback looks continuous between inference frames; 0 shows raw frames. Stacks with latent Feedback |
+| Resolution | Internal render size: 512, 384, or 256. Output stays 512 x 512; smaller is faster and softer. Not used by DreamShaper Shape |
 
 ## Performance and storage
 
 Historical standalone measurements on the M4 Max above were roughly 13 inference FPS for SDXS/DreamShaper and 11.5 FPS for DreamShaper Shape at 512 x 512. These are model-processing measurements, not guaranteed TouchDesigner display FPS or end-to-end latency. TouchDesigner shares the GPU, and complex networks reduce available inference performance.
+
+Inference loads with CPU and Neural Engine (`CPU_AND_NE`); prompt encoding stays on the GPU. Standalone SDXS on an M3 Pro measured about 12 FPS at 512, 20 at 384 and 38 at 256. Each smaller size is another converted UNet and VAE package, made once with, for example, `.venv/bin/python -m backend.convert_models --model sdxs --size 384`; selecting an unconverted size shows that command as the error.
 
 Locally measured converted packages occupy approximately 631 MiB for SDXS, 607 MiB for DreamShaper, and 959 MiB for the sketch graph, which also reuses DreamShaper's VAE packages. Hugging Face source checkpoints, Python packages, and Core ML caches require additional space. Downloads may change over time.
 
@@ -107,6 +114,8 @@ The component's runtime source is `touchdesigner/core_runtime.py`; its expanded 
 
 Set `TOUCHDESIGNER_APP` if the app is installed somewhere other than `/Applications/TouchDesigner.app`. The build writes `dist/Mac Diffusion Core.tox`; it does not edit a running TouchDesigner project.
 
+To try a build, open `touchdesigner/MacDiffusionTest.toe`. It feeds the component from a switch (`source_select` index 0 animated shape, 1 noise, 2 photo) and shows worker state, inference FPS and latency in `status_text`. The component references `../dist/Mac Diffusion Core.tox` instead of embedding a copy: after rebuilding, pulse **Enable External .tox Pulse** on `mac_diffusion`'s Common page (or reopen the project). A reload restores the component's parameter defaults, so turn **Generate** back on afterwards.
+
 Run the tests without downloading or loading model weights:
 
 ```bash
@@ -120,7 +129,7 @@ HTTP integration tests bind a temporary loopback port. A sandbox that forbids lo
 .venv/bin/python -m backend.benchmark --model sdxs
 ```
 
-The current release is a prototype: one shared worker, fixed resolution, no multi-component scheduling, and limited validation across Macs. Contributions and reproducible bug reports are welcome; include macOS, TouchDesigner version, chip/RAM, selected model, and relevant worker error.
+The current release is a prototype: one shared worker, fixed 512 x 512 output, no multi-component scheduling, and limited validation across Macs. Contributions and reproducible bug reports are welcome; include macOS, TouchDesigner version, chip/RAM, selected model, and relevant worker error.
 
 ## Credits and license
 

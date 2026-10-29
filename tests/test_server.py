@@ -23,6 +23,13 @@ class EngineAdapterTests(unittest.TestCase):
         self.assertEqual(calls, [{'model': 'dreamshaper', 'seed': 12}, 'close'])
 
 
+class EngineOutputTests(unittest.TestCase):
+    def test_result_is_rgb_only(self):
+        engine = CoreMLEngine.__new__(CoreMLEngine)
+        engine.engine = SimpleNamespace(process_frame=lambda f: f)
+        self.assertEqual(engine.process_bytes(bytes([9]) * FRAME_BYTES), bytes([9]) * FRAME_BYTES)
+
+
 class HttpTests(unittest.TestCase):
     def setUp(self):
         engine = FakeEngine()

@@ -11,4 +11,7 @@ pages 1 Diffusion
 772804869 Newvariation "New Variation" 1 1 0 0 1 1 1 2 0 "" "" Diffusion 8
 772804867 Masktoinput "Mask to Input" 1 1 0 0 1 1 1 2 0 "" "" Diffusion 9
 772804879 Masksource "Mask Source" 1 1 0 0 1 1 1 2 0 brightness "" Diffusion 4097 2 alpha Alpha brightness Brightness 10
+772804865 Smoothing Smoothing 1 3 0 0 3 0.95 1 2 0.75 "" "" Diffusion 11
+772935951 Resolution Resolution 1 1 0 0 1 1 1 2 0 512 "" Diffusion 4097 3 512 "512 (best)" 384 "384 (faster)" 256 "256 (fastest)" 12 "me.par.Model != 'dreamshaper-sketch'"
+772935939 Subjectedges "Subject Edges" 1 1 0 0 1 1 1 2 0 "" "" Diffusion 13 "me.par.Model == 'dreamshaper-sketch'"
 ?

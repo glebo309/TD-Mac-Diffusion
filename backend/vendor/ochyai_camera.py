@@ -48,83 +48,7 @@ DEFAULT_PROMPTS = [
     "pop art style, bold colors, comic book aesthetic, Roy Lichtenstein",
 ]
 
-from ..model_specs import MODEL_CONFIGS
-
-
-def ensure_vae_encoder(render_size, coreml_dir, model_id="madebyollin/taesd", subfolder=None):
-    """Auto-convert TinyVAE Encoder if not present."""
-    path = os.path.join(coreml_dir, f"taesd_encoder_{render_size}.mlpackage")
-    if os.path.exists(path):
-        return path
-    import torch
-    from diffusers import AutoencoderTiny
-    print(f"  Auto-converting TinyVAE Encoder ({render_size}x{render_size})...")
-    vae = AutoencoderTiny.from_pretrained(model_id, **({"subfolder": subfolder} if subfolder else {})).eval().float().cpu()
-
-    class W(torch.nn.Module):
-        def __init__(self, v):
-            super().__init__()
-            self.encoder = v.encoder
-        def forward(self, x):
-            return self.encoder(x)
-
-    w = W(vae).eval()
-    d = torch.randn(1, 3, render_size, render_size)
-    with torch.no_grad():
-        traced = torch.jit.trace(w, d)
-    m = ct.convert(
-        traced,
-        inputs=[ct.TensorType(name="image", shape=d.shape, dtype=np.float16)],
-        outputs=[ct.TensorType(name="latent", dtype=np.float16)],
-        compute_units=ct.ComputeUnit.ALL,
-        minimum_deployment_target=ct.target.macOS14,
-        convert_to="mlprogram",
-    )
-    m.save(path)
-    del m, traced, w, vae
-    gc.collect()
-    print(f"  Saved: {path}")
-    return path
-
-
-def ensure_vae_decoder(render_size, coreml_dir, model_id="madebyollin/taesd", subfolder=None):
-    """Auto-convert TinyVAE Decoder if not present."""
-    if render_size == 512:
-        path = os.path.join(coreml_dir, "taesd_decoder.mlpackage")
-    else:
-        path = os.path.join(coreml_dir, f"taesd_decoder_{render_size}.mlpackage")
-    if os.path.exists(path):
-        return path
-    import torch
-    from diffusers import AutoencoderTiny
-    ls = render_size // 8
-    print(f"  Auto-converting TinyVAE Decoder ({render_size}x{render_size})...")
-    vae = AutoencoderTiny.from_pretrained(model_id, **({"subfolder": subfolder} if subfolder else {})).eval().float().cpu()
-
-    class W(torch.nn.Module):
-        def __init__(self, v):
-            super().__init__()
-            self.decoder = v.decoder
-        def forward(self, x):
-            return self.decoder(x)
-
-    w = W(vae).eval()
-    d = torch.randn(1, 4, ls, ls)
-    with torch.no_grad():
-        traced = torch.jit.trace(w, d)
-    m = ct.convert(
-        traced,
-        inputs=[ct.TensorType(name="latent", shape=d.shape, dtype=np.float16)],
-        outputs=[ct.TensorType(name="image", dtype=np.float16)],
-        compute_units=ct.ComputeUnit.ALL,
-        minimum_deployment_target=ct.target.macOS14,
-        convert_to="mlprogram",
-    )
-    m.save(path)
-    del m, traced, w, vae
-    gc.collect()
-    print(f"  Saved: {path}")
-    return path
+from ..model_specs import MODEL_CONFIGS, unet_package
 
 
 class Pipeline:
@@ -140,18 +64,18 @@ class Pipeline:
         cfg = MODEL_CONFIGS[model_name]
 
         print("\n--- Loading CoreML Models ---")
-        vae_kwargs = {"model_id": cfg.get("vae_model_id", "madebyollin/taesd"), "subfolder": cfg.get("vae_subfolder")}
-        enc_path = ensure_vae_encoder(render_size, coreml_dir, **vae_kwargs)
-        dec_path = ensure_vae_decoder(render_size, coreml_dir, **vae_kwargs)
-        prefix = cfg["unet_prefix"]
-        unet_path = os.path.join(coreml_dir, f"{prefix}.mlpackage")
-        if not os.path.exists(unet_path):
-            print(f"ERROR: UNet model not found at {unet_path}")
-            print(f"  Run: python scripts/convert_models.py --model {model_name}")
-            sys.exit(1)
+        unet_path = os.path.join(coreml_dir, unet_package(cfg["unet_prefix"], render_size))
+        enc_path = os.path.join(coreml_dir, f"taesd_encoder_{render_size}.mlpackage")
+        dec_path = os.path.join(coreml_dir, "taesd_decoder.mlpackage" if render_size == 512 else f"taesd_decoder_{render_size}.mlpackage")
+        for path in (unet_path, enc_path, dec_path):
+            if not os.path.exists(path):
+                # Raised, not exited: the worker shows this message in TouchDesigner.
+                raise FileNotFoundError(f"{os.path.basename(path)} not converted. Run: "
+                                        f".venv/bin/python -m backend.convert_models --model {model_name} --size {render_size}")
         print(f"  UNet: {unet_path}")
 
-        cu = ct.ComputeUnit.CPU_AND_GPU
+        # Neural Engine halves UNet and TAESD latency vs GPU (measured on M3 Pro) and leaves the GPU to TouchDesigner.
+        cu = ct.ComputeUnit.CPU_AND_NE
         self.vae_encoder = ct.models.MLModel(enc_path, compute_units=cu)
         self.vae_decoder = ct.models.MLModel(dec_path, compute_units=cu)
         self.unet = ct.models.MLModel(unet_path, compute_units=cu)

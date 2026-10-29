@@ -105,3 +105,24 @@ def test_unchanged_prompt_preserves_intentional_feedback(engine):
     fake._prev_denoised = previous
     obj.configure(prompt='initial', feedback=.14)
     assert fake._prev_denoised is previous
+
+def test_resolution_sets_render_size_and_sketch_stays_512(monkeypatch):
+    created=[]
+    monkeypatch.setattr(pipeline, '_create_pipeline', lambda **kw: created.append(kw) or FakePipeline())
+    pipeline.MacDiffusion(resolution=384)
+    pipeline.MacDiffusion(model='dreamshaper-sketch', resolution=256)
+    assert [(kw['render_size'], kw['output_size']) for kw in created]==[(384,512),(512,512)]
+    with pytest.raises(ValueError,match='Resolution'):
+        pipeline.MacDiffusion(resolution=300)
+
+def test_unet_package_names_keep_existing_512_files():
+    from backend.model_specs import unet_package
+    assert unet_package('unet_sdxs_512', 512)=='unet_sdxs_512.mlpackage'
+    assert unet_package('unet_sdxs_512', 384)=='unet_sdxs_512_384.mlpackage'
+
+def test_missing_vae_package_raises_convert_command(tmp_path):
+    from backend.vendor.ochyai_camera import Pipeline
+    (tmp_path/'unet_sdxs_512_384.mlpackage').mkdir()
+    (tmp_path/'taesd_encoder_384.mlpackage').mkdir()
+    with pytest.raises(FileNotFoundError,match=r'taesd_decoder_384.*-m backend.convert_models --model sdxs --size 384'):
+        Pipeline('sdxs',384,512,'p',coreml_dir=str(tmp_path))

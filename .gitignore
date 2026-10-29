@@ -21,4 +21,5 @@ Backup/
 !/touchdesigner/input_mask.py
 !/touchdesigner/component/
 !/touchdesigner/component.toc
+!/touchdesigner/MacDiffusionTest.toe
 /backend/vendor/README.upstream.md

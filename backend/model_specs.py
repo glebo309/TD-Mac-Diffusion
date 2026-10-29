@@ -16,6 +16,11 @@ MODEL_CONFIGS = {
                  'unet_prefix': 'unet_sd_turbo', 'scheduler': 'default'},
 }
 
+RESOLUTIONS = (512, 384, 256)  # internal render sizes; output stays 512 x 512
+
+def unet_package(prefix, size):
+    return f'{prefix}.mlpackage' if size == 512 else f'{prefix}_{size}.mlpackage'
+
 def model_directory(model):
     if model not in MODEL_CONFIGS:
         raise ValueError(f'Unknown model: {model}')
