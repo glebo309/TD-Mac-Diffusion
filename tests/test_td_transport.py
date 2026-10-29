@@ -73,6 +73,20 @@ def test_smoothing_feedback_reads_the_blended_image():
     assert '0 \tgenerated\n' in (root/'smooth_feedback.n').read_text()
     assert 'top 0 smooth' in (root/'smooth_feedback.parm').read_text()
 
+def test_component_creation_closes_the_previous_bridge():
+    root=pathlib.Path(__file__).resolve().parents[1]/'touchdesigner/component/mac_diffusion_core'
+    start=Mock()
+    runtime=Mock()
+    runtime.module.start=start
+    namespace={'op':lambda name:runtime}
+    exec((root/'execute.text').read_bytes()[27:].decode(),namespace)
+    namespace['onCreate']()
+    start.assert_called_once_with()
+
+def test_component_enables_its_creation_callback():
+    root=pathlib.Path(__file__).resolve().parents[1]/'touchdesigner/component/mac_diffusion_core'
+    assert 'create 0 on' in (root/'execute.parm').read_text().splitlines()
+
 def test_closed_bridge_does_not_post_after_in_flight_request():
     import threading
     from unittest.mock import MagicMock
