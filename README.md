@@ -2,7 +2,7 @@
 
 Local AI image processing for Apple Silicon, packaged as a reusable TouchDesigner component. Feed it a TOP from your own network and use the generated TOP downstream.
 
-**Early development.** Tested with TouchDesigner 2025.32050 on an M4 Max with 32 GPU cores and 36 GB unified memory. Other Apple Silicon Macs are not yet validated. The focus is procedural shapes and live visuals, with a small parameter page rather than a standalone generation interface.
+**Early development.** The original prototype was tested with TouchDesigner 2025.32050; the latest changes were checked with 2025.33230 on an M4 Max with 32 GPU cores and 36 GB unified memory. Contributor measurements on M3 Pro are listed below; validation across other configurations remains limited. The focus is procedural shapes and live visuals, with a small parameter page rather than a standalone generation interface.
 
 ```text
 Your TOP -> Mac Diffusion Core -> Generated TOP -> Your network
@@ -12,9 +12,10 @@ Your TOP -> Mac Diffusion Core -> Generated TOP -> Your network
 
 ## What it does
 
-- One image input and one image output at 512 x 512.
+- One image input and one image output at 512 x 512, with optional 384 or 256 internal rendering for SDXS and DreamShaper.
+- CPU and Neural Engine inference for the UNet and tiny VAE, with GPU prompt encoding.
 - SDXS 0.9, SDXS DreamShaper, and DreamShaper Shape with sketch ControlNet guidance.
-- Prompt, seed, new variation, shape influence, latent feedback, and wet/dry controls.
+- Prompt, seed, new variation, shape influence, latent feedback, output smoothing, and wet/dry controls.
 - Optional output masking from input alpha or brightness, with transparent output outside the mask.
 - Custom parameters usable from expressions and CHOP exports.
 - Latest-frame transport in RAM. Generated images are overwritten, not recorded to disk.
@@ -51,6 +52,25 @@ Model conversion is a separate, one-time operation and can take several minutes.
 6. For a fresh variation of the same prompt, pulse **New Variation**. Turn **Generate** off to stop inference and bypass the image.
 
 The component starts the local worker automatically when enabled. It connects only to `127.0.0.1:8765`. Use one active Mac Diffusion component at a time in this prototype. TouchDesigner timeline pause is never overridden.
+
+### Faster internal rendering
+
+Start at **Resolution = 512** for detail. To use the smaller SDXS sizes, convert each one once:
+
+```bash
+.venv/bin/python -m backend.convert_models --model sdxs --size 384
+.venv/bin/python -m backend.convert_models --model sdxs --size 256
+```
+
+Use `--model dreamshaper` for the corresponding DreamShaper packages. Select the converted size in the **Resolution** menu. Output remains 512 x 512; smaller internal images have less detail. DreamShaper Shape always uses 512.
+
+**Smoothing** blends the displayed results over time. Start at 0 to inspect raw frames, then increase it for smoother transitions. Higher values add trails and delay visible changes; smoothing does not increase inference FPS.
+
+### Updating an existing installation
+
+Pull the latest code and rerun `bash setup.sh` to install the Vision dependencies. Stop any worker launched from the previous version before enabling the updated component. If you started the worker in Terminal, use Ctrl-C there; if it was started by the component, identify its Python process with `ps ax -o pid=,command= | grep '[w]orker.server'` and stop that specific process with `kill <PID>`.
+
+Replace the imported component with `dist/Mac Diffusion Core.tox`, or reload its external `.tox` if your project references that file. Existing embedded components do not update when the repository is pulled. Reloading restores parameter defaults, including **Generate = off**; restore your settings before enabling it. Existing 512 model packages can be reused.
 
 ### Shape guidance and transparent output
 
@@ -90,7 +110,9 @@ Enable **Subject Edges** (DreamShaper Shape only) to guide generation from the m
 
 Historical standalone measurements on the M4 Max above were roughly 13 inference FPS for SDXS/DreamShaper and 11.5 FPS for DreamShaper Shape at 512 x 512. These are model-processing measurements, not guaranteed TouchDesigner display FPS or end-to-end latency. TouchDesigner shares the GPU, and complex networks reduce available inference performance.
 
-Inference loads with CPU and Neural Engine (`CPU_AND_NE`); prompt encoding stays on the GPU. Standalone SDXS on an M3 Pro measured about 12 FPS at 512, 20 at 384 and 38 at 256. Each smaller size is another converted UNet and VAE package, made once with, for example, `.venv/bin/python -m backend.convert_models --model sdxs --size 384`; selecting an unconverted size shows that command as the error.
+The UNet and tiny VAE request CPU and Neural Engine (`CPU_AND_NE`), excluding GPU execution for those packages while allowing CPU fallback; prompt encoding stays on the GPU. Standalone SDXS on an M3 Pro measured about 12 FPS at 512, 20 at 384 and 38 at 256. Each smaller size is another converted UNet and VAE package, made once with, for example, `.venv/bin/python -m backend.convert_models --model sdxs --size 384`; selecting an unconverted size shows that command as the error.
+
+A matched standalone check on the M4 Max above (64 frames per condition after warmup, 512 x 512) measured SDXS at 13.56 FPS with CPU/GPU and 13.49 with CPU/Neural Engine. DreamShaper measured 14.61 and 16.34 FPS respectively. These single runs do not establish a universal speedup. In a separate simple TouchDesigner 2025.33230 network, SDXS at 256 internal resolution delivered about 28 FPS, with roughly 41 model-processing FPS. Results depend on the model, internal resolution, network load, and frame transport. Subject Edges adds Vision processing overhead.
 
 Locally measured converted packages occupy approximately 631 MiB for SDXS, 607 MiB for DreamShaper, and 959 MiB for the sketch graph, which also reuses DreamShaper's VAE packages. Hugging Face source checkpoints, Python packages, and Core ML caches require additional space. Downloads may change over time.
 
@@ -132,6 +154,8 @@ HTTP integration tests bind a temporary loopback port. A sandbox that forbids lo
 The current release is a prototype: one shared worker, fixed 512 x 512 output, no multi-component scheduling, and limited validation across Macs. Contributions and reproducible bug reports are welcome; include macOS, TouchDesigner version, chip/RAM, selected model, and relevant worker error.
 
 ## Credits and license
+
+Thanks to [Gaëtan Guéraud (@exadeci)](https://github.com/exadeci) for [PR #1](https://github.com/glebo309/TD-Mac-Diffusion/pull/1): Neural Engine inference, internal resolution controls, output smoothing, Vision subject-edge guidance, and component reload and worker lifecycle fixes.
 
 The Core ML backend adapts [ochyai/streamdiffusion-mac](https://github.com/ochyai/streamdiffusion-mac). Sketch conditioning follows the [SDXS authors' example](https://github.com/IDKiro/sdxs/blob/main/demo_sketch.py). This project adds TouchDesigner transport, parameters, prompt/seed handling, model switching, and output masking.
 
